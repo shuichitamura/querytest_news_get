@@ -3,7 +3,10 @@ from boto3.dynamodb.conditions import Key,Attr
 import time
 import json
 
+get_news_num = 12
+
 def lambda_handler(event, context):
+  print(event)
   try:
     dynamoDB = boto3.resource("dynamodb")
     table = dynamoDB.Table("dx_terminal_news4") # DynamoDBのテーブル名
@@ -19,128 +22,227 @@ def lambda_handler(event, context):
     # ニュース検索要キーワード抽出
     try:
         word = str(event['params']['querystring']['searchKeyword'])
-        wordumu = 1
+        if word:
+          wordumu = 1
+        else:
+          wordumu = 0
     except:
         wordumu = 0
     
+    
     # lastkeyの取得
     try:
-      Last_key = event['params']['querystring']['lastKey']
+      Last_key_item_name = event['params']['querystring']['item_name']
+      Last_key_time_stamp = event['params']['querystring']['timestamp']
+      Last_key = {'item_name':Last_key_item_name,'timestamp':Last_key_time_stamp}
       
-    except:
-      Last_key = []
-      # print('e')
-    
-    Last_key = json.loads(Last_key)
-    print(Last_key)
-    # もっと見るボタンが押された回数
-    try:
-      click = int(event['params']['querystring']['clicknum'])
-    except:
-      click = 0
-    
-    get_news_num = 12 * (click+1)
-    
-    # 検索ワードなしの場合
-    if wordumu == 0:
-  
-    # タイムスタンプによるソート
-      if bunki == 'T':
-        queryData = table.query(
-          KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
-          ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
-          # ExclusiveStartKey = Last_key,
-          Limit = get_news_num
-        )
-        
-      # コメント数によるソート
-      if bunki == 'C':
-        queryData = table.query(
-          IndexName='comment_count-index',
-          KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
-          ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
-          # ExclusiveStartKey = Last_key,
-          Limit = get_news_num
-        )
+      # コメントカウントがある場合
+      try:
+        Last_key_comment_count = int(event['params']['querystring']['comment_count'])
+        Last_key = {'item_name':Last_key_item_name,'timestamp':Last_key_time_stamp,'comment_count':Last_key_comment_count}
+      except:
+        pass
+      # like数がある場合
+      try:
+        Last_key_like_count = int(event['params']['querystring']['like_count'])
+        Last_key = {'item_name':Last_key_item_name,'timestamp':Last_key_time_stamp,'like_count':Last_key_like_count}
+      except:
+        pass
+      # 閲覧数がある場合
+      try:
+        Last_key_view_count = int(event['params']['querystring']['view_count'])
+        Last_key = {'item_name':Last_key_item_name,'timestamp':Last_key_time_stamp,'view_count':Last_key_view_count}
+      except:
+        pass
       
-      # like数によるソート
-      if bunki == 'L':
-        queryData = table.query(
-          IndexName='like_count-index',
-          KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
-          ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
-          Limit = get_news_num
-        )
-        
-      # 閲覧数によるソート
-      if bunki == 'V':
-        queryData = table.query(
-          IndexName='view_count-index',
-          KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
-          ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
-          Limit = get_news_num
-        )
+      print(Last_key)
+      
+      # 検索ワードなしの場合
+      if wordumu == 0:
     
-    # 検索ワードありの場合
-    else:
-      # タイムスタンプによるソートとキーワードによる抽出
-      if bunki == 'T':
-        # print(word)
-        # print(get_news_num)
-        queryData = table.query(
-          KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
-          FilterExpression = Attr('text').contains(word),
-          ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
-          Limit = get_news_num
-        )
+      # タイムスタンプによるソート
+        if bunki == 'T':
+          queryData = table.query(
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            ExclusiveStartKey = Last_key,
+            Limit = get_news_num
+          )
+          
+        # コメント数によるソート
+        if bunki == 'C':
+          queryData = table.query(
+            IndexName='comment_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            ExclusiveStartKey = Last_key,
+            Limit = get_news_num
+          )
         
-      # コメント数によるソートとキーワードによる抽出
-      if bunki == 'C':
-        # print(word)
-        queryData = table.query(
-          IndexName='comment_count-index',
-          KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
-          FilterExpression = Attr('text').contains(word),
-          ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
-          Limit = get_news_num
-        )
-        
-      # like数によるソートとキーワードによる抽出
-      if bunki == 'L':
-        # print(word)
-        queryData = table.query(
-          IndexName='like_count-index',
-          KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
-          FilterExpression = Attr('text').contains(word),
-          ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
-          Limit = get_news_num
-        )
-        
-        # 閲覧数によるソートとキーワードによる抽出
-      if bunki == 'V':
-        # print(word)
-        queryData = table.query(
-          IndexName='view_count-index',
-          KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
-          FilterExpression = Attr('text').contains(word),
-          ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
-          Limit = get_news_num
-        )
-    
-    s = len(queryData["Items"])
-    # print(s)
-    if click == 0:
-      lastkey = queryData["LastEvaluatedKey"]
-      queryData = queryData["Items"][0:s]
-    else:
-      click_s = 12 * click
-      click_e = click_s + (s -12*click)
-      print(click_s, click_e)
-      if click_s == click_e:
-        queryData = queryData["Items"][click_s]
+        # like数によるソート
+        if bunki == 'L':
+          queryData = table.query(
+            IndexName='like_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            ExclusiveStartKey = Last_key,
+            Limit = get_news_num
+          )
+          
+        # 閲覧数によるソート
+        if bunki == 'V':
+          queryData = table.query(
+            IndexName='view_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            ExclusiveStartKey = Last_key,
+            Limit = get_news_num
+          )
+      
+      # 検索ワードありの場合
       else:
-        queryData = queryData["Items"][click_s:click_e]
-    return queryData, lastkey
+        # タイムスタンプによるソートとキーワードによる抽出
+        if bunki == 'T':
+          # print(word)
+          # print(get_news_num)
+          queryData = table.query(
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            FilterExpression = Attr('text').contains(word),
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            ExclusiveStartKey = Last_key,
+            Limit = get_news_num
+          )
+          
+        # コメント数によるソートとキーワードによる抽出
+        if bunki == 'C':
+          # print(word)
+          queryData = table.query(
+            IndexName='comment_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            FilterExpression = Attr('text').contains(word),
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            ExclusiveStartKey = Last_key,
+            Limit = get_news_num
+          )
+          
+        # like数によるソートとキーワードによる抽出
+        if bunki == 'L':
+          # print(word)
+          queryData = table.query(
+            IndexName='like_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            FilterExpression = Attr('text').contains(word),
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            ExclusiveStartKey = Last_key,
+            Limit = get_news_num
+          )
+          
+          # 閲覧数によるソートとキーワードによる抽出
+        if bunki == 'V':
+          # print(word)
+          queryData = table.query(
+            IndexName='view_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            FilterExpression = Attr('text').contains(word),
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            ExclusiveStartKey = Last_key,
+            Limit = get_news_num
+          )
+    
+    except:
+      # 検索ワードなしの場合
+      print(bunki,'z')
+      print(wordumu)
+      if wordumu == 0:
+    
+      # タイムスタンプによるソート
+        if bunki == 'T':
+          queryData = table.query(
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            Limit = get_news_num
+          )
+          
+        # コメント数によるソート
+        if bunki == 'C':
+          queryData = table.query(
+            IndexName='comment_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            Limit = get_news_num
+          )
+        
+        # like数によるソート
+        if bunki == 'L':
+          queryData = table.query(
+            IndexName='like_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            Limit = get_news_num
+          )
+          
+        # 閲覧数によるソート
+        if bunki == 'V':
+          queryData = table.query(
+            IndexName='view_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            Limit = get_news_num
+          )
+      
+      # 検索ワードありの場合
+      else:
+        # タイムスタンプによるソートとキーワードによる抽出
+        if bunki == 'T':
+          # print(word)
+          # print(get_news_num)
+          queryData = table.query(
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            FilterExpression = Attr('text').contains(word),
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            Limit = get_news_num
+          )
+          
+        # コメント数によるソートとキーワードによる抽出
+        if bunki == 'C':
+          # print(word)
+          queryData = table.query(
+            IndexName='comment_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            FilterExpression = Attr('text').contains(word),
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            Limit = get_news_num
+          )
+          
+        # like数によるソートとキーワードによる抽出
+        if bunki == 'L':
+          # print(word)
+          queryData = table.query(
+            IndexName='like_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            FilterExpression = Attr('text').contains(word),
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            Limit = get_news_num
+          )
+          
+          # 閲覧数によるソートとキーワードによる抽出
+        if bunki == 'V':
+          # print(word)
+          queryData = table.query(
+            IndexName='view_count-index',
+            KeyConditionExpression = Key("item_name").eq("news"), # 取得するKey情報
+            FilterExpression = Attr('text').contains(word),
+            ScanIndexForward = False, # 昇順か降順か(デフォルトはTrue=昇順)
+            Limit = get_news_num
+          )
+    
+    for w in range(int(queryData["Count"])):
+       n1 = str(queryData['Items'][w]["timestamp"])
+       response1 = str(n1[0:4]+"/"+n1[4:6]+"/"+n1[6:8])
+      # response1 = str(n1[0:4]+"年"+n1[4:6]+"月"+n1[6:8]+"日")
+       queryData["Items"][w]["timestamps"] = response1
+    
+    return queryData
     
   except Exception as e:
         print (e)
